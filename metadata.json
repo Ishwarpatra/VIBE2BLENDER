@@ -1,6 +1,4 @@
 {
   "name": "VibeVenue",
-  "description": "Intent-driven 3D spatial planning assistant for physical event experiences.",
-  "requestFramePermissions": [],
-  "majorCapabilities": []
+  "description": "A Spatial Planning Assistant for Physical Event Experiences."
 }

@@ -6,6 +6,7 @@ import Editor from 'react-simple-code-editor';
 import { GoogleGenAI, Type } from '@google/genai';
 import { cleanPythonScript } from './lib/scriptUtils';
 import { validateInputs, parseApiResponse } from './lib/validation';
+import { validateSpatialSafety } from './lib/spatialSafety';
 
 // --- Matrix Rain & 3D Geometry Canvas Component ---
 const MatrixRain = ({ isDarkMode }: { isDarkMode: boolean }) => {
@@ -184,6 +185,19 @@ const MatrixRain = ({ isDarkMode }: { isDarkMode: boolean }) => {
   );
 };
 
+const EVENT_PRESETS = [
+  {
+    id: 'booth-design',
+    label: 'Booth Planning',
+    prompt: 'Design a 10x10m event booth with a registration desk, two display pillars, and stage lighting.'
+  },
+  {
+    id: 'stage-setup',
+    label: 'Stage Setup',
+    prompt: 'Create a circular presentation stage with 4 spotlights, a central podium, and 2m safety clearance around the perimeter.'
+  }
+];
+
 // --- Main Application Component ---
 export default function App() {
   const [vibe, setVibe] = useState('');
@@ -262,6 +276,14 @@ export default function App() {
       setError(inputError);
       return;
     }
+
+    const eventKeywords = ['booth', 'stage', 'layout', 'event', 'presentation'];
+    const hasEventKeyword = eventKeywords.some(kw => vibe.toLowerCase().includes(kw));
+
+    if (!hasEventKeyword) {
+      setError("Please align your prompt with the Physical Event Experience vertical (e.g., Booth or Stage design)");
+      return;
+    }
     
     setIsGenerating(true);
     setCopied(false);
@@ -325,6 +347,11 @@ export default function App() {
       if (scripttext.includes('.active =')) {
         issues.push("Detected deprecated '.active' assignment. Use 'bpy.context.view_layer.objects.active' for Blender 2.8+.");
       }
+      
+      const spatialCheck = validateSpatialSafety(scripttext);
+      if (!spatialCheck.isValid && spatialCheck.message) {
+        issues.push(spatialCheck.message);
+      }
 
       if (issues.length > 0) {
         setValidationWarning(issues.join(' '));
@@ -386,7 +413,7 @@ export default function App() {
             </div>
             <div>
               <h1 className="text-xl font-black tracking-tighter uppercase whitespace-nowrap">
-                Vibe<span className={highlightText}>2</span>Blender
+                Vibe<span className={highlightText}>Venue</span>
               </h1>
               <p className={`text-[10px] uppercase tracking-[0.2em] hidden sm:block ${isDarkMode ? 'text-white/40' : 'text-gray-500'}`}>
                 Neural Geometry Synthesis
@@ -441,14 +468,17 @@ export default function App() {
                     <label className={`text-[11px] uppercase font-bold tracking-wider ${highlightText}`}>
                       Prompt Input v1.2
                     </label>
-                    <button
-                      onClick={() => setVibe("Generate a 3D layout of a virtual PromptWars Bootcamp 'booth' arena — complete with rows of workstations, a main presentation screen, and a swag store corner. Gala lighting vibe.")}
-                      className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded border transition-colors ${
-                        isDarkMode ? 'bg-[#00FFD1]/10 text-[#00FFD1] border-[#00FFD1]/30 hover:bg-[#00FFD1]/20' : 'bg-teal-100 text-teal-700 border-teal-300 hover:bg-teal-200'
-                      }`}
-                    >
-                      Quick-Start: The Arena
-                    </button>
+                    {EVENT_PRESETS.map((preset) => (
+                      <button
+                        key={preset.id}
+                        onClick={() => setVibe(preset.prompt)}
+                        className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded border transition-colors ${
+                          isDarkMode ? 'bg-[#00FFD1]/10 text-[#00FFD1] border-[#00FFD1]/30 hover:bg-[#00FFD1]/20' : 'bg-teal-100 text-teal-700 border-teal-300 hover:bg-teal-200'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
                   </div>
                   <span className={`text-[10px] font-mono ${isDarkMode ? 'text-white/30' : 'text-gray-400'}`}>
                     BLENDER_API_V3.6
@@ -521,7 +551,7 @@ export default function App() {
                 </div>
               )}
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-3">
                 <button
                   onClick={() => handleGenerate()}
                   disabled={isGenerating || !vibe.trim() || !apiKey.trim()}
@@ -531,7 +561,21 @@ export default function App() {
                   }`}
                 >
                   {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                  Generate 3D Script
+                  Generate
+                </button>
+
+                <button
+                  onClick={() => setVibe('Create a 10x10 meter event booth with a podium and four spotlights.')}
+                  disabled={isGenerating}
+                  aria-label="Booth 10x10 Shortcut"
+                  title="Quick Fill: Booth 10x10"
+                  className={`font-bold uppercase text-[10px] px-3 py-4 rounded tracking-wider transition-all flex items-center justify-center border ${
+                    isDarkMode 
+                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20' 
+                    : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100 shadow-sm'
+                  }`}
+                >
+                  Booth 10x10
                 </button>
                 
                 <button
@@ -647,7 +691,7 @@ export default function App() {
                   <p className={`text-xs mt-2 ${isDarkMode ? 'text-white/50' : 'text-gray-500'}`}>Awaiting prompt variables...</p>
                 </div>
               ) : isGenerating ? (
-                <div className="flex-1 p-8 font-mono text-sm leading-relaxed whitespace-pre-wrap">
+                <div role="status" aria-live="polite" className="flex-1 p-8 font-mono text-sm leading-relaxed whitespace-pre-wrap">
                   <span className={isDarkMode ? 'text-white/30' : 'text-gray-400'}>
                     // Establishing Neural Link...<br/>
                     // Transmitting JSON payload to Gemini Engine...<br/>

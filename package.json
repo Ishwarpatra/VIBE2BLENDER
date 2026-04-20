@@ -1,5 +1,6 @@
 {
-  "name": "react-example",
+  "name": "vibevenue",
+  "description": "A Spatial Planning Assistant for Physical Event Experiences",
   "private": true,
   "version": "0.0.0",
   "type": "module",
