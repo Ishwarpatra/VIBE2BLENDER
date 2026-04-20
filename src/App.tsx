@@ -4,6 +4,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, prism } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { GoogleGenAI, Type } from '@google/genai';
 import { cleanPythonScript } from './lib/scriptUtils';
+import { validateInputs, parseApiResponse } from './lib/validation';
 
 // --- Matrix Rain & 3D Geometry Canvas Component ---
 const MatrixRain = ({ isDarkMode }: { isDarkMode: boolean }) => {
@@ -216,15 +217,10 @@ export default function App() {
   };
 
   const handleGenerate = async (isRetry = false) => {
-    if (!vibe.trim()) return;
-    
-    const trimmedKey = apiKey.trim();
-    if (!trimmedKey) {
-      setError('Error: API key is missing. Please provide your Gemini API key (or compatible alternative).');
-      return;
-    }
-    if (trimmedKey.length < 10) {
-      setError('Error: The provided API key seems too short. Please provide a valid API key.');
+    const inputError = validateInputs(vibe, apiKey);
+    if (inputError) {
+      if (inputError.includes("Prompt")) return;
+      setError(inputError);
       return;
     }
     
@@ -275,7 +271,7 @@ export default function App() {
       });
       
       const jsonStr = response.text || "{}";
-      const parsed = JSON.parse(jsonStr);
+      const parsed = parseApiResponse(jsonStr);
       
       const scripttext = cleanPythonScript(parsed.script);
       
@@ -490,6 +486,7 @@ export default function App() {
                 
                 <button
                   onClick={() => setShowInstructions(true)}
+                  aria-label="View instructions to run in Blender"
                   className={`font-bold uppercase text-xs px-4 py-4 rounded tracking-widest transition-all flex items-center justify-center gap-2 border ${
                     isDarkMode 
                     ? 'bg-white/5 text-white/80 border-white/10 hover:bg-white/10 hover:text-white' 
@@ -540,7 +537,11 @@ export default function App() {
             </div>
 
             {/* Output Content */}
-            <div className={`flex-1 flex flex-col h-full overflow-hidden min-h-0 ${isDarkMode ? 'font-mono' : ''}`}>
+            <div 
+              className={`flex-1 flex flex-col h-full overflow-hidden min-h-0 ${isDarkMode ? 'font-mono' : ''}`}
+              aria-live="polite"
+              aria-atomic="true"
+            >
               {!generatedScript && !isGenerating ? (
                 <div className={`flex-1 flex flex-col items-center justify-center text-center p-6 ${isDarkMode ? 'opacity-40' : 'opacity-60'}`}>
                   <Terminal className={`w-12 h-12 mb-4 ${highlightText}`} />
@@ -713,6 +714,7 @@ export default function App() {
             }`}>
               <button 
                 onClick={() => setShowInstructions(false)}
+                aria-label="Acknowledge and close instructions"
                 className={`font-bold uppercase text-xs px-6 py-2.5 rounded tracking-widest transition-all ${
                   isDarkMode ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-teal-600 hover:bg-teal-700 text-white shadow-md'
                 }`}

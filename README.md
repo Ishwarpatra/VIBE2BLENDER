@@ -4,13 +4,18 @@
 
 Creating stunning 3D environments and assets is traditionally a time-consuming and technically demanding process. Indie developers often face tight deadlines and a high barrier to entry when diving into complex 3D rendering ecosystems like Blender. 
 
-**Vibe2Blender addresses the industry challenge of slow asset prototyping by allowing developers to move from idea to 3D geometry using natural language prompts.** By automating the boilerplate—scene setup, lighting geometry, material generation, and camera placement—we drastically reduce the iteration cycle from days to mere moments. This allows developers to focus on *intent-driven development* rather than manual coding or repetitive 3D modeling.
+**Vibe2Blender addresses the industry challenge of slow asset prototyping by allowing developers to move from idea to 3D geometry using natural language prompts.** 
+
+**Chosen Vertical:** Industry 3D Asset Automation.  
+**Approach & Logic:** We used Google Antigravity to move away from manual coding toward intent-driven development. By automating the boilerplate—scene setup, lighting geometry, material generation, and camera placement—we drastically reduce the iteration cycle from days to mere moments. This allows developers to focus entirely on *intent-driven development* rather than manual syntax execution.
+
+**Assumptions:** To use this project, the user must have **Blender 4.0+ installed** and a **valid Gemini API key**.
 
 ## Narrative & Tech Stack
 
-Vibe2Blender is built utilizing **Google Antigravity workflows**, allowing us to build a functional, highly-scalable app in a fraction of the time. 
+The entire app was built using vibe coding within the Google Antigravity environment. 
 
-- **Google Cloud Run:** By leveraging a fully serverless, no-database architecture on Cloud Run, we skipped traditional backend boilerplate entirely. This allows the application to scale instantly with zero downtime.
+- **Google Cloud Run:** We leveraged Google Cloud Run for a serverless, zero-database architecture that maximizes 10x productivity. By skipping traditional backend boilerplate entirely, the application scales instantly with zero downtime.
 - **Gemini API & "Vibe Coding":** The Gemini API powers our core inference engine. Mastering these AI-native workflows has increased our prototyping productivity 10x, enabling complex natural-language-to-Python API translation with built-in formatting hooks.
 
 ## Narrative (Phase 3 Submission)
