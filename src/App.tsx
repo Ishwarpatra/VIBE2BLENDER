@@ -193,7 +193,7 @@ export default function App() {
   const [showInstructions, setShowInstructions] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (isRetry = false) => {
     if (!vibe.trim()) return;
     if (!apiKey.trim()) {
       setError('Please provide a Gemini API key to proceed.');
@@ -202,7 +202,9 @@ export default function App() {
     
     setIsGenerating(true);
     setCopied(false);
-    setError(null);
+    if (!isRetry) {
+      setError(null);
+    }
     setGeneratedScript('');
     setReview('');
     
@@ -234,10 +236,17 @@ export default function App() {
       
       setGeneratedScript(scripttext.trim());
       setReview(parsed.review || '');
-    } catch (err: any) {
-      setError(err?.message || 'Generation failed. Please verify your API key and input.');
-    } finally {
       setIsGenerating(false);
+    } catch (err: any) {
+      if (err?.status === 503 || (err?.message && String(err.message).includes('503'))) {
+        setError('Servers are busy! Automatically retrying in 5 seconds...');
+        setTimeout(() => {
+          handleGenerate(true);
+        }, 5000);
+      } else {
+        setError(err?.message || 'Generation failed. Please verify your API key and input.');
+        setIsGenerating(false);
+      }
     }
   };
 
@@ -360,7 +369,7 @@ export default function App() {
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button
-                  onClick={handleGenerate}
+                  onClick={() => handleGenerate()}
                   disabled={isGenerating || !vibe.trim() || !apiKey.trim()}
                   className={`font-black uppercase text-xs px-4 py-4 rounded tracking-widest transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
                     isDarkMode ? 'bg-[#00FFD1] text-black hover:bg-white' : 'bg-teal-600 text-white hover:bg-teal-700 shadow-md'
