@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Terminal, Copy, Check, Sparkles, Loader2, Code2, KeyRound, MessageSquareCode, Info, X, Play, Sun, Moon } from 'lucide-react';
+import { Terminal, Copy, Check, Sparkles, Loader2, Code2, KeyRound, MessageSquareCode, Info, X, Play, Sun, Moon, AlertTriangle } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, prism } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { GoogleGenAI, Type } from '@google/genai';
@@ -190,13 +190,20 @@ export default function App() {
   const [review, setReview] = useState<string>('');
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [validationWarning, setValidationWarning] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
 
   const handleGenerate = async (isRetry = false) => {
     if (!vibe.trim()) return;
-    if (!apiKey.trim()) {
-      setError('Please provide a Gemini API key to proceed.');
+    
+    const trimmedKey = apiKey.trim();
+    if (!trimmedKey) {
+      setError('Error: API key is missing. Please provide your Gemini API key (or compatible alternative).');
+      return;
+    }
+    if (trimmedKey.length < 10) {
+      setError('Error: The provided API key seems too short. Please provide a valid API key.');
       return;
     }
     
@@ -205,6 +212,7 @@ export default function App() {
     if (!isRetry) {
       setError(null);
     }
+    setValidationWarning(null);
     setGeneratedScript('');
     setReview('');
     
@@ -223,7 +231,7 @@ export default function App() {
             },
             required: ["script", "review"]
           },
-          systemInstruction: "You are Vibe2Blender. Translate descriptions into functional Blender Python scripts using the bpy module. Start by deleting default objects. Configure Camera/Light. Apply materials.\nYou MUST respond with a raw JSON object containing exactly two keys: 'script' (the Python code) and 'review' (explanation of the code)."
+          systemInstruction: "You are Vibe2Blender. Translate descriptions into functional Blender Python scripts using the bpy module. Start by deleting default objects. You must use Blender 4.0+ syntax. For clearing the scene, use bpy.ops.object.select_all(action='SELECT') followed by bpy.ops.object.delete(). Never use the legacy action='ALL'. Configure Camera/Light. Apply materials.\nYou MUST respond with a raw JSON object containing exactly two keys: 'script' (the Python code) and 'review' (explanation of the code)."
         }
       });
       
@@ -234,6 +242,22 @@ export default function App() {
       scripttext = scripttext.replace(/^```(python|py)?/gi, '');
       scripttext = scripttext.replace(/```$/g, '');
       
+      // Client-Side Validation Step
+      let issues = [];
+      if (!scripttext.includes('import bpy')) {
+        issues.push("Missing 'import bpy'.");
+      }
+      if (scripttext.match(/action=['"]ALL['"]/)) {
+        issues.push("Detected legacy action='ALL', change to action='SELECT'.");
+      }
+      if (scripttext.includes('.active =')) {
+        issues.push("Detected deprecated '.active' assignment. Use 'bpy.context.view_layer.objects.active' for Blender 2.8+.");
+      }
+
+      if (issues.length > 0) {
+        setValidationWarning(issues.join(' '));
+      }
+
       setGeneratedScript(scripttext.trim());
       setReview(parsed.review || '');
       setIsGenerating(false);
@@ -327,7 +351,7 @@ export default function App() {
                   type="password"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="Paste your Gemini API Key here..."
+                  placeholder="Paste your Gemini or compatible API Key..."
                   className={`w-full border rounded px-3 py-2 text-sm font-mono focus:outline-none transition-colors ${
                     isDarkMode 
                     ? 'bg-white/5 border-white/5 focus:border-[#00FFD1]/50 focus:text-[#00FFD1] placeholder:text-white/20' 
@@ -454,7 +478,22 @@ export default function App() {
               ) : (
                 <>
                   {/* Code Block Context */}
-                  <div className={`flex-1 overflow-auto custom-scrollbar border-b ${isDarkMode ? 'border-white/10' : 'border-gray-200'}`}>
+                  <div className={`flex-1 overflow-auto custom-scrollbar border-b flex flex-col ${isDarkMode ? 'border-white/10' : 'border-gray-200'}`}>
+                    
+                    {validationWarning && (
+                      <div className={`m-4 p-4 rounded-lg flex items-start gap-3 border flex-shrink-0 ${
+                        isDarkMode ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' : 'bg-orange-50 border-orange-200 text-orange-700'
+                      }`}>
+                        <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <h4 className="font-bold uppercase tracking-widest text-[10px] mb-1">Code Validation Warning</h4>
+                          <p className={`font-mono text-xs ${isDarkMode ? 'text-amber-500/80' : 'text-orange-800'}`}>
+                            {validationWarning}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     <SyntaxHighlighter
                       language="python"
                       style={isDarkMode ? vscDarkPlus : prism}
