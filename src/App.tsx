@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Terminal, Copy, Check, Sparkles, Loader2, Code2, KeyRound, MessageSquareCode, Info, X, Play, Sun, Moon, AlertTriangle, ImagePlus } from 'lucide-react';
+import { Terminal, Copy, Check, Sparkles, Loader2, Code2, KeyRound, MessageSquareCode, Info, X, Play, Sun, Moon, AlertTriangle, ImagePlus, Undo, Redo } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, prism } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import Editor from 'react-simple-code-editor';
 import { GoogleGenAI, Type } from '@google/genai';
 import { cleanPythonScript } from './lib/scriptUtils';
 import { validateInputs, parseApiResponse } from './lib/validation';
@@ -196,7 +197,45 @@ export default function App() {
   const [showInstructions, setShowInstructions] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  
+  // History state for undo/redo
+  const [history, setHistory] = useState<{script: string, review: string}[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editBuffer, setEditBuffer] = useState("");
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const pushToHistory = (script: string, rev: string) => {
+    setHistory(prev => {
+      const newHistory = prev.slice(0, historyIndex + 1);
+      return [...newHistory, { script, review: rev }];
+    });
+    setHistoryIndex(prev => prev + 1);
+  };
+
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      const prevIndex = historyIndex - 1;
+      setHistoryIndex(prevIndex);
+      setGeneratedScript(history[prevIndex].script);
+      setReview(history[prevIndex].review);
+    }
+  };
+
+  const handleRedo = () => {
+    if (historyIndex < history.length - 1) {
+      const nextIndex = historyIndex + 1;
+      setHistoryIndex(nextIndex);
+      setGeneratedScript(history[nextIndex].script);
+      setReview(history[nextIndex].review);
+    }
+  };
+
+  const handleScriptChange = (newScript: string) => {
+    setGeneratedScript(newScript);
+    pushToHistory(newScript, review);
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -266,7 +305,7 @@ export default function App() {
             },
             required: ["script", "review"]
           },
-          systemInstruction: "You are Vibe2Blender. Translate descriptions into functional Blender Python scripts using the bpy module. Start by deleting default objects. You must use Blender 4.0+ syntax. For clearing the scene, use bpy.ops.object.select_all(action='SELECT') followed by bpy.ops.object.delete(). Never use the legacy action='ALL'. Configure Camera/Light. Apply materials.\nYou MUST respond with a raw JSON object containing exactly two keys: 'script' (the Python code) and 'review' (explanation of the code)."
+          systemInstruction: "You are Vibe2Blender, a Spatial Planning Assistant for Physical Event Experience. Translate descriptions into functional Blender 4.0+ Python scripts using the bpy module. Start by deleting default objects using bpy.ops.object.select_all(action='SELECT') followed by bpy.ops.object.delete(). Never use legacy action='ALL'.\nWhen the user describes a 'booth' or 'stage,' automatically generate a 10x10 or 20x20 meter floor plane in Blender first. Ensure all generated furniture and assets are scaled to real-world metric units so event planners can use them as actual blueprints. Enhance the logic to support 'Event Lighting Schemes.' If a user mentions a 'vibe' like 'Gala,' 'Keynote,' or 'Afterparty,' generate specific Blender Area Lights and Spotlights with high-intensity values and 'Gel' colors (Hex codes) to simulate a physical stage environment. Add a 'Safety & Flow' check to the code generation: if the user asks for a layout, logically space out large objects (like stage pillars or registration desks) at least 2 meters apart to ensure 'Attendee Flow' and safety compliance in the 3D model. Apply materials.\nYou MUST respond with a raw JSON object containing exactly two keys: 'script' (the Python code) and 'review' (explanation of the code)."
         }
       });
       
@@ -293,6 +332,7 @@ export default function App() {
 
       setGeneratedScript(scripttext.trim());
       setReview(parsed.review || '');
+      pushToHistory(scripttext.trim(), parsed.review || '');
       setIsGenerating(false);
     } catch (err: any) {
       if (err?.status === 503 || (err?.message && String(err.message).includes('503'))) {
@@ -397,9 +437,19 @@ export default function App() {
               {/* Vibe Prompt Input & Image Upload */}
               <div className="flex-1 flex flex-col gap-2 relative">
                 <div className="flex justify-between items-center px-1">
-                  <label className={`text-[11px] uppercase font-bold tracking-wider ${highlightText}`}>
-                    Prompt Input v1.2
-                  </label>
+                  <div className="flex items-center gap-2">
+                    <label className={`text-[11px] uppercase font-bold tracking-wider ${highlightText}`}>
+                      Prompt Input v1.2
+                    </label>
+                    <button
+                      onClick={() => setVibe("Generate a 3D layout of a virtual PromptWars Bootcamp 'booth' arena — complete with rows of workstations, a main presentation screen, and a swag store corner. Gala lighting vibe.")}
+                      className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded border transition-colors ${
+                        isDarkMode ? 'bg-[#00FFD1]/10 text-[#00FFD1] border-[#00FFD1]/30 hover:bg-[#00FFD1]/20' : 'bg-teal-100 text-teal-700 border-teal-300 hover:bg-teal-200'
+                      }`}
+                    >
+                      Quick-Start: The Arena
+                    </button>
+                  </div>
                   <span className={`text-[10px] font-mono ${isDarkMode ? 'text-white/30' : 'text-gray-400'}`}>
                     BLENDER_API_V3.6
                   </span>
@@ -512,11 +562,59 @@ export default function App() {
                 <div className={`w-3 h-3 rounded-full ${isDarkMode ? 'bg-white/10' : 'bg-gray-300'}`}></div>
               </div>
               <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1 mr-2">
+                  <button
+                    onClick={handleUndo}
+                    disabled={historyIndex <= 0}
+                    aria-label="Undo"
+                    title="Undo"
+                    className={`p-1.5 rounded transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
+                      isDarkMode ? 'hover:bg-white/10 text-white/70 hover:text-white' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-800'
+                    }`}
+                  >
+                    <Undo className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={handleRedo}
+                    disabled={historyIndex >= history.length - 1}
+                    aria-label="Redo"
+                    title="Redo"
+                    className={`p-1.5 rounded transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
+                      isDarkMode ? 'hover:bg-white/10 text-white/70 hover:text-white' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-800'
+                    }`}
+                  >
+                    <Redo className="w-4 h-4" />
+                  </button>
+                </div>
                 <span className={`text-[11px] uppercase tracking-widest font-mono hidden sm:inline-block ${
                   isDarkMode ? 'text-white/30' : 'text-gray-400'
                 }`}>
                   generated_script.py
                 </span>
+                
+                {generatedScript && (
+                  <button
+                    onClick={() => {
+                      if (isEditing) {
+                        handleScriptChange(editBuffer);
+                        setIsEditing(false);
+                      } else {
+                        setEditBuffer(generatedScript);
+                        setIsEditing(true);
+                      }
+                    }}
+                    aria-label={isEditing ? "Save modifications" : "Edit script"}
+                    className={`text-[10px] uppercase font-bold px-3 py-1.5 rounded border transition-all flex items-center justify-center gap-2 ${
+                      isDarkMode 
+                      ? (isEditing ? 'text-[#00FFD1] bg-[#00FFD1]/10 border-[#00FFD1]/20 hover:bg-[#00FFD1]/20' : 'text-white/70 bg-white/5 border-white/10 hover:bg-white/10 hover:text-white')
+                      : (isEditing ? 'text-teal-700 bg-teal-50 border-teal-200 hover:bg-teal-100' : 'text-gray-600 bg-gray-50 border-gray-200 hover:bg-gray-100')
+                    }`}
+                  >
+                    {isEditing ? <Check className="w-3 h-3" /> : <Code2 className="w-3 h-3" />}
+                    {isEditing ? 'Save' : 'Edit'}
+                  </button>
+                )}
+
                 <button
                   onClick={copyToClipboard}
                   disabled={!generatedScript}
@@ -581,21 +679,34 @@ export default function App() {
                       </div>
                     )}
 
-                    <SyntaxHighlighter
-                      language="python"
-                      style={isDarkMode ? vscDarkPlus : prism}
-                      customStyle={{
-                        margin: 0,
-                        padding: '1.5rem',
-                        background: 'transparent',
-                        fontSize: '14px',
-                        lineHeight: '1.6',
-                        fontFamily: 'var(--font-mono)',
-                      }}
-                      wrapLines={true}
-                    >
-                      {generatedScript}
-                    </SyntaxHighlighter>
+                    {isEditing ? (
+                      <textarea
+                        value={editBuffer}
+                        onChange={(e) => setEditBuffer(e.target.value)}
+                        spellCheck={false}
+                        className={`flex-1 w-full p-6 text-[14px] leading-[1.6] font-mono resize-none focus:outline-none transition-colors ${
+                          isDarkMode 
+                          ? 'bg-black/20 text-[#D4D4D4]' 
+                          : 'bg-white text-gray-800'
+                        }`}
+                      />
+                    ) : (
+                      <SyntaxHighlighter
+                        language="python"
+                        style={isDarkMode ? vscDarkPlus : prism}
+                        customStyle={{
+                          margin: 0,
+                          padding: '1.5rem',
+                          background: 'transparent',
+                          fontSize: '14px',
+                          lineHeight: '1.6',
+                          fontFamily: 'var(--font-mono)',
+                        }}
+                        wrapLines={true}
+                      >
+                        {generatedScript}
+                      </SyntaxHighlighter>
+                    )}
                   </div>
                   
                   {/* Code Review Panel */}
