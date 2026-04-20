@@ -19,7 +19,7 @@ The solution follows a purely serverless, zero-database architecture designed fo
 
 #### 🏗️ File Tree Structure
 To maintain the < 1 MB repository size limit and follow the single-branch rule, the project is structured for maximum efficiency:
-\`\`\`text
+```
 vibevenue/
 ├── .github/workflows/   # CI/CD for Google Cloud Run
 ├── public/              # Static assets (Logos, SVGs)
@@ -33,7 +33,7 @@ vibevenue/
 ├── vite.config.ts       # Cloud Run port & host configuration
 ├── tsconfig.json        # TypeScript configuration
 └── README.md            # Challenge documentation
-\`\`\`
+```
 
 * **Chosen Vertical**: Physical Event Experience.
 * **Approach & Logic**: We used Google Antigravity to move away from manual layout coding toward intent-driven development. By automating the boilerplate—such as generating 10x10 booths scaled to real metric units—we drastically reduce the iteration cycle.
