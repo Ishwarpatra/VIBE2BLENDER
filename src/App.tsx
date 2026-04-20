@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Terminal, Copy, Check, Sparkles, Loader2, Code2, KeyRound, MessageSquareCode, Info, X, Play, Sun, Moon, AlertTriangle } from 'lucide-react';
+import { Terminal, Copy, Check, Sparkles, Loader2, Code2, KeyRound, MessageSquareCode, Info, X, Play, Sun, Moon, AlertTriangle, ImagePlus } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, prism } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { GoogleGenAI, Type } from '@google/genai';
+import { cleanPythonScript } from './lib/scriptUtils';
 
 // --- Matrix Rain & 3D Geometry Canvas Component ---
 const MatrixRain = ({ isDarkMode }: { isDarkMode: boolean }) => {
@@ -174,7 +175,7 @@ const MatrixRain = ({ isDarkMode }: { isDarkMode: boolean }) => {
   }, [isDarkMode]);
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-0">
+    <div className="fixed inset-0 pointer-events-none z-0" aria-hidden="true">
       <canvas ref={shapesCanvasRef} className="absolute inset-0 opacity-40 mix-blend-screen" />
       <canvas ref={rainCanvasRef} className="absolute inset-0 opacity-80" />
     </div>
@@ -193,6 +194,26 @@ export default function App() {
   const [validationWarning, setValidationWarning] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate size (e.g. max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Image size shouldn't exceed 5MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   const handleGenerate = async (isRetry = false) => {
     if (!vibe.trim()) return;
@@ -218,9 +239,27 @@ export default function App() {
     
     try {
       const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
+      
+      let promptContents: any = vibe;
+      
+      if (imagePreview) {
+        const [meta, base64] = imagePreview.split(',');
+        const mimeType = meta.split(':')[1].split(';')[0];
+        
+        promptContents = [
+          {
+            inlineData: {
+              data: base64,
+              mimeType: mimeType
+            }
+          },
+          vibe
+        ];
+      }
+
       const response = await ai.models.generateContent({
         model: "gemini-3.1-pro-preview",
-        contents: vibe,
+        contents: promptContents,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -238,9 +277,7 @@ export default function App() {
       const jsonStr = response.text || "{}";
       const parsed = JSON.parse(jsonStr);
       
-      let scripttext = parsed.script || '';
-      scripttext = scripttext.replace(/^```(python|py)?/gi, '');
-      scripttext = scripttext.replace(/```$/g, '');
+      const scripttext = cleanPythonScript(parsed.script);
       
       // Client-Side Validation Step
       let issues = [];
@@ -327,6 +364,7 @@ export default function App() {
               isDarkMode ? 'bg-white/5 hover:bg-white/10' : 'bg-gray-100 hover:bg-gray-200'
             }`}
             title="Toggle Theme"
+            aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
           >
             {isDarkMode ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-slate-700" />}
           </button>
@@ -360,8 +398,8 @@ export default function App() {
                 />
               </div>
 
-              {/* Vibe Prompt Input */}
-              <div className="flex-1 flex flex-col gap-2">
+              {/* Vibe Prompt Input & Image Upload */}
+              <div className="flex-1 flex flex-col gap-2 relative">
                 <div className="flex justify-between items-center px-1">
                   <label className={`text-[11px] uppercase font-bold tracking-wider ${highlightText}`}>
                     Prompt Input v1.2
@@ -370,16 +408,62 @@ export default function App() {
                     BLENDER_API_V3.6
                   </span>
                 </div>
-                <textarea
-                  value={vibe}
-                  onChange={(e) => setVibe(e.target.value)}
-                  placeholder="e.g., A sprawling neon cityscape with rain-slicked pavement and low-poly flying vehicles..."
-                  className={`flex-1 w-full border rounded-lg p-5 text-lg font-light leading-relaxed focus:outline-none transition-colors resize-none min-h-[160px] ${
-                    isDarkMode 
-                    ? 'bg-white/5 border-white/10 focus:border-[#00FFD1]/50 placeholder:text-white/10' 
-                    : 'bg-white border-gray-300 focus:border-teal-500 placeholder:text-gray-300 shadow-inner'
-                  }`}
-                />
+                
+                <div className="relative flex-1 flex flex-col min-h-[160px]">
+                  <textarea
+                    value={vibe}
+                    onChange={(e) => setVibe(e.target.value)}
+                    placeholder="e.g., A sprawling neon cityscape with rain-slicked pavement and low-poly flying vehicles..."
+                    className={`absolute inset-0 w-full h-full border rounded-lg p-5 pb-16 text-lg font-light leading-relaxed focus:outline-none transition-colors resize-none ${
+                      isDarkMode 
+                      ? 'bg-white/5 border-white/10 focus:border-[#00FFD1]/50 placeholder:text-white/10' 
+                      : 'bg-white border-gray-300 focus:border-teal-500 placeholder:text-gray-300 shadow-inner'
+                    }`}
+                  />
+                  
+                  {/* Image Preview & Upload Button inside textarea area */}
+                  <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between pointer-events-none">
+                    <div className="flex items-center gap-2 pointer-events-auto">
+                      <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={handleImageUpload} 
+                        accept="image/png, image/jpeg, image/webp" 
+                        className="hidden" 
+                      />
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        title="Upload Reference Image"
+                        aria-label="Upload reference image"
+                        className={`p-2 rounded-lg border transition-all ${
+                          isDarkMode 
+                          ? 'bg-black/60 border-white/20 text-white/70 hover:text-white hover:border-[#00FFD1]/50' 
+                          : 'bg-white/80 border-gray-300 text-gray-600 hover:text-teal-600 hover:border-teal-400'
+                        } backdrop-blur-sm`}
+                      >
+                        <ImagePlus className="w-5 h-5" />
+                      </button>
+                      
+                      {imagePreview && (
+                        <div className={`relative group rounded-lg overflow-hidden border ${isDarkMode ? 'border-white/20' : 'border-gray-300'}`}>
+                          <img 
+                            src={imagePreview} 
+                            alt="Reference upload" 
+                            className="w-10 h-10 object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setImagePreview(null); }}
+                            aria-label="Remove image"
+                            className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-4 h-4 text-white" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -395,6 +479,7 @@ export default function App() {
                 <button
                   onClick={() => handleGenerate()}
                   disabled={isGenerating || !vibe.trim() || !apiKey.trim()}
+                  aria-label="Generate 3D script"
                   className={`font-black uppercase text-xs px-4 py-4 rounded tracking-widest transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
                     isDarkMode ? 'bg-[#00FFD1] text-black hover:bg-white' : 'bg-teal-600 text-white hover:bg-teal-700 shadow-md'
                   }`}
@@ -438,6 +523,7 @@ export default function App() {
                 <button
                   onClick={copyToClipboard}
                   disabled={!generatedScript}
+                  aria-label="Copy generated Python script to clipboard"
                   className={`text-[10px] uppercase font-bold px-3 py-1.5 rounded border transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[140px] gap-2 ${
                     isDarkMode 
                     ? 'text-[#00FFD1] bg-[#00FFD1]/10 border-[#00FFD1]/20 hover:bg-[#00FFD1]/20' 
@@ -555,6 +641,7 @@ export default function App() {
               </div>
               <button 
                 onClick={() => setShowInstructions(false)}
+                aria-label="Close instructions panel"
                 className={`p-1 rounded transition-colors ${
                   isDarkMode ? 'text-white/50 hover:text-white hover:bg-white/10' : 'text-gray-400 hover:text-gray-800 hover:bg-gray-200'
                 }`}
