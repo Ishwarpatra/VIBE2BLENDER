@@ -1,6 +1,6 @@
 {
-  "name": "Vibe2Blender",
-  "description": "Generate Blender 3D Python scripts directly from natural language vibes. Features a cyber-aesthetic interface.",
+  "name": "VibeVenue",
+  "description": "Intent-driven 3D spatial planning assistant for physical event experiences.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }
